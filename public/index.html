@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>C Lexical Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#1c2230;
+  --border:#21293a;
+  --border2:#2d3a4f;
+  --accent:#4fa8ff;
+  --accent2:#38d9a9;
+  --text:#c9d1d9;
+  --text2:#7a8899;
+  --text3:#3d4f63;
+  --kw:#79c0ff;
+  --id:#d2a8ff;
+  --op:#ff9e64;
+  --con:#f7c948;
+  --sym:#4dd0e1;
+  --str:#a8d8a8;
+  --chr:#ffcb6b;
+  --hdr:#38d9a9;
+  --inv:#ff6b6b;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:0 16px 80px;
+  overflow-x:hidden;
+}
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(79,168,255,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(79,168,255,0.025) 1px,transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+  z-index:0;
+}
+.glow-tl,.glow-br{position:fixed;border-radius:50%;pointer-events:none;z-index:0;}
+.glow-tl{width:600px;height:600px;top:-280px;left:-180px;background:radial-gradient(circle,rgba(79,168,255,0.05) 0%,transparent 65%);}
+.glow-br{width:700px;height:700px;bottom:-320px;right:-220px;background:radial-gradient(circle,rgba(56,217,169,0.04) 0%,transparent 65%);}
+.wrap{width:100%;max-width:1200px;position:relative;z-index:1;}
+
+/* Hero */
+.hero{
+  padding:52px 0 36px;
+  text-align:center;
+  animation:heroIn 0.7s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes heroIn{from{opacity:0;transform:translateY(-20px);}to{opacity:1;transform:translateY(0);}}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:5px 14px;
+  border:1px solid rgba(79,168,255,0.25);
+  border-radius:99px;
+  font-size:11px;
+  color:var(--accent);
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  margin-bottom:20px;
+  background:rgba(79,168,255,0.07);
+  font-family:'Fira Code',monospace;
+}
+.bdot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 1.6s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.15;}}
+
+.hero h1{
+  font-family:'Inter',sans-serif;
+  font-size:clamp(28px,5.5vw,52px);
+  font-weight:700;
+  letter-spacing:-1.5px;
+  line-height:1.1;
+  color:#d3dbe5;
+}
+.hero h1 span.hl{
+  background:linear-gradient(135deg,#4fa8ff 0%,#38d9a9 100%);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.hero p{
+  color:var(--text2);
+  font-size:12.5px;
+  margin-top:12px;
+  letter-spacing:0.3px;
+  font-family:'Fira Code',monospace;
+}
+.kbd{
+  display:inline-block;
+  padding:1px 7px;
+  border:1px solid var(--border2);
+  border-radius:5px;
+  font-size:11px;
+  color:var(--text3);
+  margin-left:4px;
+}
+
+/* Legend */
+.legend{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:7px;
+  margin-bottom:24px;
+  animation:fadeUp 0.6s 0.2s ease both;
+}
+.leg{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 12px;
+  border-radius:99px;
+  font-size:10px;
+  letter-spacing:0.8px;
+  text-transform:uppercase;
+  font-weight:500;
+  border:1px solid;
+  cursor:default;
+  transition:transform 0.15s;
+  font-family:'Fira Code',monospace;
+}
+.leg:hover{transform:translateY(-2px);}
+.ldot{width:5px;height:5px;border-radius:50%;}
+
+/* Split */
+.split{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  animation:fadeUp 0.55s 0.1s ease both;
+}
+@media(max-width:700px){.split{grid-template-columns:1fr;}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+
+/* Panel */
+.panel{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+.titlebar{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:11px 18px;
+  background:var(--surface2);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.dot{width:12px;height:12px;border-radius:50%;}
+.dr{background:#ff5f57;}.dy{background:#febc2e;}.dg{background:#28c840;}
+.tbar-label{
+  font-size:11px;
+  color:var(--text2);
+  letter-spacing:0.8px;
+  text-transform:uppercase;
+  margin-left:4px;
+  font-family:'Fira Code',monospace;
+}
+.tbar-right{
+  margin-left:auto;
+  font-size:10px;
+  color:var(--text3);
+  font-family:'Fira Code',monospace;
+}
+
+/* Editor */
+.editor-body{display:flex;position:relative;flex:1;}
+.line-nums{
+  padding:16px 12px 16px 14px;
+  color:var(--text3);
+  font-size:13px;
+  line-height:1.65;
+  text-align:right;
+  user-select:none;
+  min-width:44px;
+  border-right:1px solid var(--border);
+  background:var(--surface2);
+  white-space:pre;
+  overflow:hidden;
+  font-family:'Fira Code',monospace;
+}
+textarea{
+  flex:1;
+  background:transparent;
+  border:none;
+  outline:none;
+  resize:none;
+  color:var(--text);
+  font-family:'Fira Code',monospace;
+  font-size:13px;
+  line-height:1.65;
+  padding:16px 16px;
+  height:320px;
+  caret-color:var(--accent);
+  tab-size:4;
+}
+textarea::placeholder{color:var(--text3);}
+textarea:focus{color:#e6edf3;}
+
+.scanline{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  height:1.5px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0;
+  animation:scan 2.2s linear infinite;
+  transition:opacity 0.4s;
+  pointer-events:none;
+}
+textarea:focus~.scanline{opacity:0.6;}
+@keyframes scan{0%{transform:translateX(-150%);}100%{transform:translateX(200%);}}
+
+/* Actions */
+.actions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 16px;
+  border-top:1px solid var(--border);
+  background:var(--surface2);
+  gap:8px;
+  flex-wrap:wrap;
+  flex-shrink:0;
+}
+.actions-left{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.plabel{
+  font-size:10px;
+  color:var(--text3);
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+  font-family:'Fira Code',monospace;
+}
+.preset{
+  padding:4px 10px;
+  border-radius:7px;
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--text2);
+  font-family:'Fira Code',monospace;
+  font-size:10.5px;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.preset:hover{border-color:var(--accent);color:var(--accent);background:rgba(79,168,255,0.07);}
+.actions-right{display:flex;gap:7px;}
+.btn{
+  padding:7px 16px;
+  border-radius:8px;
+  font-family:'Inter',sans-serif;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all 0.2s;
+  border:none;
+}
+.btn-clear{
+  background:transparent;
+  border:1px solid var(--border2);
+  color:var(--text2);
+}
+.btn-clear:hover{border-color:var(--inv);color:var(--inv);}
+.btn-run{
+  background:linear-gradient(135deg,#4fa8ff 0%,#38d9a9 100%);
+  color:#0d1117;
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.btn-run:hover{
+  background:linear-gradient(135deg,#6dbfff 0%,#4fe8ba 100%);
+  transform:translateY(-1px);
+}
+.btn-run:active{transform:translateY(0);}
+.ri{font-size:11px;transition:transform 0.2s;}
+.btn-run:hover .ri{transform:translateX(2px);}
+.spinner{
+  width:13px;height:13px;
+  border:2px solid rgba(0,0,0,0.18);
+  border-top-color:#0d1117;
+  border-radius:50%;
+  animation:spin 0.6s linear infinite;
+  display:none;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.btn-run.loading .ri,.btn-run.loading .rl{display:none;}
+.btn-run.loading .spinner,.btn-run.loading .ll{display:block;}
+.ll{display:none;font-size:11.5px;}
+
+/* Output */
+.output-body{
+  padding:18px 20px;
+  min-height:320px;
+  flex:1;
+  overflow-y:auto;
+  font-family:'Fira Code',monospace;
+}
+.empty-state{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100%;
+  min-height:280px;
+  gap:10px;
+  color:var(--text3);
+  font-size:12px;
+}
+.empty-icon{
+  width:38px;height:38px;
+  border-radius:50%;
+  border:1px dashed var(--border2);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:15px;
+}
+
+/* Tokens */
+.token-row{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin-bottom:11px;
+  opacity:0;
+  animation:rowIn 0.3s ease forwards;
+  flex-wrap:wrap;
+}
+@keyframes rowIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+.token-row+.token-row{border-top:1px solid rgba(255,255,255,0.04);padding-top:11px;}
+.t-label{
+  flex-shrink:0;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:1.2px;
+  text-transform:uppercase;
+  padding:3px 8px;
+  border-radius:6px;
+  margin-top:2px;
+  white-space:nowrap;
+  border:1px solid transparent;
+  font-family:'Fira Code',monospace;
+}
+.t-values{flex:1;display:flex;flex-wrap:wrap;gap:4px;}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  padding:2px 9px;
+  border-radius:5px;
+  font-size:12px;
+  font-weight:500;
+  border:1px solid transparent;
+  transition:transform 0.15s;
+  cursor:default;
+  font-family:'Fira Code',monospace;
+}
+.chip:hover{transform:translateY(-1px);}
+.c-hdr{background:rgba(56,217,169,0.1);color:var(--hdr);border-color:rgba(56,217,169,0.18);}
+.c-kw{background:rgba(121,192,255,0.1);color:var(--kw);border-color:rgba(121,192,255,0.18);}
+.c-id{background:rgba(210,168,255,0.1);color:var(--id);border-color:rgba(210,168,255,0.18);}
+.c-op{background:rgba(255,158,100,0.1);color:var(--op);border-color:rgba(255,158,100,0.18);}
+.c-con{background:rgba(247,201,72,0.1);color:var(--con);border-color:rgba(247,201,72,0.18);}
+.c-sym{background:rgba(77,208,225,0.1);color:var(--sym);border-color:rgba(77,208,225,0.18);}
+.c-str{background:rgba(168,216,168,0.1);color:var(--str);border-color:rgba(168,216,168,0.18);}
+.c-chr{background:rgba(255,203,107,0.1);color:var(--chr);border-color:rgba(255,203,107,0.18);}
+.c-inv{background:rgba(255,107,107,0.1);color:var(--inv);border-color:rgba(255,107,107,0.18);}
+
+/* Stats */
+.stats-bar{
+  display:none;
+  flex-wrap:wrap;
+  gap:5px 14px;
+  padding:9px 18px;
+  border-top:1px solid var(--border);
+  background:var(--surface2);
+  font-size:10.5px;
+  color:var(--text2);
+  flex-shrink:0;
+  font-family:'Fira Code',monospace;
+}
+.stat{display:flex;align-items:center;gap:5px;}
+.sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.sval{color:var(--text);font-weight:600;}
+
+/* Toast */
+.toast{
+  position:fixed;
+  top:22px;right:22px;
+  z-index:200;
+  background:var(--surface2);
+  border:1px solid rgba(56,217,169,0.3);
+  border-radius:10px;
+  padding:10px 18px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-size:12px;
+  color:var(--accent2);
+  transform:translateX(130%);
+  transition:transform 0.4s cubic-bezier(.22,1,.36,1);
+  pointer-events:none;
+  font-family:'Fira Code',monospace;
+}
+.toast.show{transform:translateX(0);}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+</style>
+</head>
+<body>
+<div class="glow-tl"></div>
+<div class="glow-br"></div>
+<div class="toast" id="toast">✓ Tokens extracted</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="badge"><span class="bdot"></span>Live Lexer</div>
+    <h1>C <span class="hl">Lexical</span> Analyzer</h1>
+    <p>Tokenize · Classify · Inspect &nbsp;|&nbsp; Press<span class="kbd">Ctrl</span><span class="kbd">↵</span> to run</p>
+  </div>
+
+  <div class="legend">
+    <span class="leg" style="color:var(--hdr);border-color:rgba(56,217,169,0.22);background:rgba(56,217,169,0.07)"><span class="ldot" style="background:var(--hdr)"></span>Header</span>
+    <span class="leg" style="color:var(--kw);border-color:rgba(121,192,255,0.22);background:rgba(121,192,255,0.07)"><span class="ldot" style="background:var(--kw)"></span>Keyword</span>
+    <span class="leg" style="color:var(--id);border-color:rgba(210,168,255,0.22);background:rgba(210,168,255,0.07)"><span class="ldot" style="background:var(--id)"></span>Identifier</span>
+    <span class="leg" style="color:var(--op);border-color:rgba(255,158,100,0.22);background:rgba(255,158,100,0.07)"><span class="ldot" style="background:var(--op)"></span>Operator</span>
+    <span class="leg" style="color:var(--con);border-color:rgba(247,201,72,0.22);background:rgba(247,201,72,0.07)"><span class="ldot" style="background:var(--con)"></span>Constant</span>
+    <span class="leg" style="color:var(--sym);border-color:rgba(77,208,225,0.22);background:rgba(77,208,225,0.07)"><span class="ldot" style="background:var(--sym)"></span>Symbol</span>
+    <span class="leg" style="color:var(--str);border-color:rgba(168,216,168,0.22);background:rgba(168,216,168,0.07)"><span class="ldot" style="background:var(--str)"></span>String</span>
+    <span class="leg" style="color:var(--chr);border-color:rgba(255,203,107,0.22);background:rgba(255,203,107,0.07)"><span class="ldot" style="background:var(--chr)"></span>Char</span>
+    <span class="leg" style="color:var(--inv);border-color:rgba(255,107,107,0.22);background:rgba(255,107,107,0.07)"><span class="ldot" style="background:var(--inv)"></span>Invalid</span>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="titlebar">
+        <span class="dot dr"></span><span class="dot dy"></span><span class="dot dg"></span>
+        <span class="tbar-label">input.c</span>
+        <span class="tbar-right" id="charCount">0 chars</span>
+      </div>
+      <div class="editor-body">
+        <div class="line-nums" id="lineNums">1</div>
+        <textarea id="code" spellcheck="false" placeholder="// Enter C code here..."></textarea>
+        <div class="scanline"></div>
+      </div>
+      <div class="actions">
+        <div class="actions-left">
+          <span class="plabel">Try:</span>
+          <button class="preset" onclick="loadPreset('hello')">Hello World</button>
+          <button class="preset" onclick="loadPreset('loop')">For Loop</button>
+          <button class="preset" onclick="loadPreset('struct')">Struct</button>
+          <button class="preset" onclick="loadPreset('ops')">Operators</button>
+        </div>
+        <div class="actions-right">
+          <button class="btn btn-clear" onclick="clearAll()">Clear</button>
+          <button class="btn btn-run" id="runBtn" onclick="analyzeCode()">
+            <span class="ri">▶</span><span class="rl">Run</span>
+            <div class="spinner"></div><span class="ll">…</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="titlebar">
+        <span class="dot dr"></span><span class="dot dy"></span><span class="dot dg"></span>
+        <span class="tbar-label">tokens.out</span>
+        <span class="tbar-right" id="tokenCount"></span>
+      </div>
+      <div class="output-body" id="output">
+        <div class="empty-state">
+          <div class="empty-icon">⬡</div>
+          <span>// Run analysis to see results</span>
+        </div>
+      </div>
+      <div class="stats-bar" id="statsBar"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS={
+  hello:`#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}`,
+  loop:`int main() {\n    int sum = 0;\n    for (int i = 1; i <= 10; i++) {\n        sum += i;\n    }\n    return sum;\n}`,
+  struct:`#include <string.h>\n\nstruct Student {\n    char name[50];\n    int age;\n    float gpa;\n};\n\nint main() {\n    struct Student s;\n    s.age = 20;\n    return 0;\n}`,
+  ops:`int main() {\n    int a = 5, b = 3;\n    int c = a + b;\n    if (a >= b && c != 0) {\n        c++;\n    }\n    return c;\n}`
+};
+const TM={
+  'Header Files':{cls:'hdr',color:'var(--hdr)'},
+  'Keywords':{cls:'kw',color:'var(--kw)'},
+  'Identifiers':{cls:'id',color:'var(--id)'},
+  'Operators':{cls:'op',color:'var(--op)'},
+  'Constants':{cls:'con',color:'var(--con)'},
+  'Symbols':{cls:'sym',color:'var(--sym)'},
+  'Strings':{cls:'str',color:'var(--str)'},
+  'Characters':{cls:'chr',color:'var(--chr)'},
+  'Invalid Identifiers':{cls:'inv',color:'var(--inv)'},
+};
+const ta=document.getElementById('code');
+const ln=document.getElementById('lineNums');
+function updateLines(){
+  const n=ta.value.split('\n').length;
+  ln.textContent=Array.from({length:n},(_,i)=>i+1).join('\n');
+  document.getElementById('charCount').textContent=ta.value.length+' chars';
+}
+ta.addEventListener('input',updateLines);
+ta.addEventListener('keydown',()=>setTimeout(updateLines,0));
+ta.addEventListener('scroll',()=>{ln.scrollTop=ta.scrollTop;});
+updateLines();
+function loadPreset(k){ta.value=PRESETS[k];updateLines();ta.focus();}
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function clearAll(){
+  ta.value='';updateLines();
+  document.getElementById('output').innerHTML='<div class="empty-state"><div class="empty-icon">⬡</div><span>// Run analysis to see results</span></div>';
+  document.getElementById('statsBar').style.display='none';
+  document.getElementById('tokenCount').textContent='';
+}
+function renderOutput(raw){
+  const out=document.getElementById('output');
+  if(!raw.trim()){out.innerHTML='<div class="empty-state"><div class="empty-icon">⬡</div><span>// No tokens found</span></div>';return;}
+  const lines=raw.trim().split('\n');
+  let html='',stats=[],total=0;
+  lines.forEach((line,idx)=>{
+    const col=line.indexOf(': ');
+    if(col===-1){html+=`<div style="color:var(--text2);font-size:12px;padding:4px 0;">${esc(line)}</div>`;return;}
+    const label=line.substring(0,col).trim();
+    const vals=line.substring(col+2).trim();
+    const info=TM[label]||{cls:'id',color:'var(--id)'};
+    const isSym=label==='Symbols';
+    const tokens=isSym?vals.split(' ').filter(Boolean):vals.split(',').map(s=>s.trim()).filter(Boolean);
+    total+=tokens.length;
+    const chips=tokens.map(t=>`<span class="chip c-${info.cls}">${esc(t)}</span>`).join('');
+    html+=`<div class="token-row" style="animation-delay:${idx*0.05}s"><span class="t-label c-${info.cls}">${label}</span><div class="t-values">${chips}</div></div>`;
+    stats.push({cls:info.cls,color:info.color,label,count:tokens.length});
+  });
+  out.innerHTML=html;
+  document.getElementById('tokenCount').textContent=total+' tokens';
+  const bar=document.getElementById('statsBar');
+  bar.style.display='flex';
+  bar.innerHTML=stats.map(s=>`<span class="stat"><span class="sdot" style="background:${s.color}"></span>${s.label}: <span class="sval">${s.count}</span></span>`).join('');
+}
+function toast(){const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+function analyzeCode(){
+  const code=ta.value;
+  if(!code.trim()){ta.focus();return;}
+  const btn=document.getElementById('runBtn');
+  btn.classList.add('loading');
+  fetch('/api/analyze', { method: 'POST', body: code })
+    .then(r=>r.text())
+    .then(data=>{renderOutput(data);toast();})
+    .catch(()=>{document.getElementById('output').innerHTML='<div class="empty-state" style="color:var(--inv)">⚠ Server error — is server running on port 3000?</div>';})
+    .finally(()=>btn.classList.remove('loading'));
+}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')analyzeCode();});
+</script>
+</body>
+</html>
